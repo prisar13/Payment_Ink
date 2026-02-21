@@ -1,0 +1,75 @@
+package com.service;
+
+import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.LocalDateTime;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.stereotype.Service;
+
+import com.config.CallbackRetryQueue;
+import com.model.constants.FraudDecision;
+import com.model.dto.FraudQueueRequest;
+import com.model.dto.FraudResult;
+import com.model.dto.ResponseDTO;
+import com.model.dto.TransactionRequest;
+import com.model.entity.FraudEvaluation;
+import com.repository.FraudEvaluationRepository;
+
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+@Service
+public class FraudService {
+    @Autowired
+    private FraudEvaluationRepository fraudEvaluationRepository;
+    @Autowired
+    private CallbackRetryQueue callbackRetryQueue;
+    @Autowired
+    private StringRedisTemplate redisTemplate;
+
+    public ResponseDTO evaluateTransaction(TransactionRequest request) {
+        log.info("Evaluating transaction with ID: {}", request.getTransactionId());
+        FraudEvaluation eval = setFraudEvaluationDetails(request);
+        FraudResult result = evaluateRules(request);
+        eval.setDecision(result.getDecision());
+        eval.setRiskScore(result.getRiskScore());
+        fraudEvaluationRepository.save(eval);
+        callbackRetryQueue.sendCallback(new FraudQueueRequest(request.getTransactionId(), result.getDecision()));
+        return new ResponseDTO(request.getTransactionId(), result.getDecision().name(), result.getReason());
+    }
+
+    private FraudEvaluation setFraudEvaluationDetails(TransactionRequest request) {
+        FraudEvaluation fraudEvaluation = new FraudEvaluation();
+        fraudEvaluation.setTransactionId(request.getTransactionId());
+        fraudEvaluation.setAmount(request.getAmount());
+        fraudEvaluation.setIpAddress(request.getIpAddress());
+        fraudEvaluation.setEvaluatedAt(LocalDateTime.now());
+        return fraudEvaluation;
+    }
+
+    private FraudResult evaluateRules(TransactionRequest request) {
+        if (request.getAmount().compareTo(new BigDecimal("1000")) > 0) {
+            return new FraudResult(FraudDecision.BLOCKED, 0.9, "Amount threshold exceeded");
+        }
+
+        boolean userFraud = isVelocityFraud("user", request.getUserId(), 5);
+        boolean ipFraud = isVelocityFraud("ip", request.getIpAddress(), 10);
+        if (userFraud || ipFraud) {
+            return new FraudResult(FraudDecision.BLOCKED, 0.8, "Velocity threshold exceeded");
+        }
+
+        return new FraudResult(FraudDecision.APPROVED, 0.0, "Approved");
+    }
+
+    private boolean isVelocityFraud(String keyPrefix, String value, int threshold) {
+        String key = keyPrefix + ":" + value;
+        Long count = redisTemplate.opsForValue().increment(key);
+        if (count == 1) {
+            redisTemplate.expire(key, Duration.ofMinutes(1));
+        }
+
+        return count > threshold;
+    }
+}
