@@ -15,7 +15,7 @@ import lombok.EqualsAndHashCode;
 @Entity
 @Data
 @Table(name = "transactions")
-@EqualsAndHashCode(callSuper=true)
+@EqualsAndHashCode(callSuper = true)
 public class Transaction extends GenericTableConstants {
     @Enumerated(EnumType.STRING)
     private TransactionType type;
@@ -24,4 +24,5 @@ public class Transaction extends GenericTableConstants {
     private String description;
     @Enumerated(EnumType.STRING)
     private Status status;
+
 }

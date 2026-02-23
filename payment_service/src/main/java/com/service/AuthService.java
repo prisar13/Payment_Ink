@@ -1,16 +1,18 @@
 package com.service;
 
 import java.util.Optional;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import com.model.dto.AppUser;
 import com.model.constants.ResponseStatus;
-import com.model.constants.Role;
+import com.model.constants.RoleType;
 import com.model.dto.LoginRequest;
 import com.model.dto.ResponseDTO;
+import com.model.entity.AppUser;
+import com.repo.RoleRepository;
 import com.repo.UserRepository;
 import com.util.JwtUtil;
 
@@ -23,12 +25,17 @@ public class AuthService {
     private PasswordEncoder passwordEncoder;
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private RoleRepository roleRepository;
 
     public ResponseDTO register(LoginRequest req) {
         AppUser user = new AppUser();
         user.setUsername(req.getUsername());
         user.setPassword(passwordEncoder.encode(req.getPassword()));
-        user.setRole(req.getRole() != null ? Role.valueOf(req.getRole().toUpperCase()) : Role.USER);
+
+        user.setRoles(Set.of(
+                roleRepository.findByName(RoleType.DEVELOPER)
+                        .orElseThrow(() -> new RuntimeException("Role not found"))));
         if (userRepository.findByUsername(req.getUsername()).isPresent()) {
             return new ResponseDTO(ResponseStatus.FAILED, "Username already exists", null, null);
         }
@@ -46,5 +53,18 @@ public class AuthService {
         }
         String token = jwtUtil.generateToken(user.get().getUsername());
         return new ResponseDTO(ResponseStatus.SUCCESS, "Login successful", null, token);
+    }
+
+    public ResponseDTO assignUserRole(LoginRequest req) {
+        AppUser user = new AppUser();
+        user.setUsername(req.getUsername());
+        user.setPassword(passwordEncoder.encode(req.getPassword()));
+        user.setRoles(Set.of(roleRepository.findByName(RoleType.valueOf(req.getRole().toUpperCase()))
+                .orElseThrow(() -> new RuntimeException("Role not found"))));
+        if (userRepository.findByUsername(req.getUsername()).isPresent()) {
+            return new ResponseDTO(ResponseStatus.FAILED, "Username already exists", null, null);
+        }
+        userRepository.save(user);
+        return new ResponseDTO(ResponseStatus.SUCCESS, "Admin registered successfully", null, null);
     }
 }

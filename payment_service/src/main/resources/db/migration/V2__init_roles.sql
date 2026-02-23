@@ -1,0 +1,4 @@
+INSERT INTO role (name) VALUES ('ADMIN');
+INSERT INTO role (name) VALUES ('DEVELOPER');
+INSERT INTO role (name) VALUES ('TESTER');
+INSERT INTO role (name) VALUES ('PRODUCT_OWNER');

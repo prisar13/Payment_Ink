@@ -5,7 +5,7 @@ import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import com.model.dto.AppUser;
+import com.model.entity.AppUser;
 
 public interface UserRepository extends JpaRepository<AppUser, UUID> {
     Optional<AppUser> findByUsername(String username);

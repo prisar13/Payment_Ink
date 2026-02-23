@@ -4,5 +4,6 @@ public enum Status {
     PENDING,
     COMPLETED,
     FAILED,
-    REVIEW
+    REVIEW,
+    FLAGGED
 }

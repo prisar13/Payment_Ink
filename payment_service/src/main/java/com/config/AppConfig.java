@@ -3,6 +3,7 @@ package com.config;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -12,6 +13,7 @@ import org.springframework.web.client.RestTemplate;
 
 import com.service.JwtFilter;
 
+@EnableMethodSecurity
 @Configuration
 public class AppConfig {
 
@@ -28,8 +30,6 @@ public class AppConfig {
         http.csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**").permitAll()
-                        .requestMatchers("/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/user/**").hasAnyRole("USER", "ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtFilter,
                         UsernamePasswordAuthenticationFilter.class);

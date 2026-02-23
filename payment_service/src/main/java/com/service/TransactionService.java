@@ -1,10 +1,15 @@
 package com.service;
 
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.util.Pair;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -19,15 +24,26 @@ import com.model.dto.TransactionRequestDTO;
 import com.model.entity.Transaction;
 import com.repo.TransactionRepository;
 import com.util.IdGeneratorUtil;
+import com.util.JwtUtil;
+
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 public class TransactionService {
+
+    @Autowired
+    private final JwtUtil jwtUtil;
     @Autowired
     private TransactionRepository transactionRepository;
     @Autowired
     private RestTemplate restTemplate;
     @Value("${fraud.service.url}")
     private String fraudServiceUrl;
+
+    TransactionService(JwtUtil jwtUtil) {
+        this.jwtUtil = jwtUtil;
+    }
 
     public ResponseDTO processTransaction(TransactionRequestDTO requestDTO) {
         Transaction transaction = new Transaction();
@@ -42,11 +58,19 @@ public class TransactionService {
         fraudRequest.setTransactionId(transaction.getId().toString());
         fraudRequest.setAmount(transaction.getAmount());
 
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(jwtUtil.getServiceToken());
+        HttpEntity<FraudRequestDTO> entity = new HttpEntity<>(fraudRequest, headers);
+
         CompletableFuture.runAsync(() -> {
-            restTemplate.postForObject(
-                    fraudServiceUrl + "/evaluate",
-                    fraudRequest,
-                    FraudResponseDTO.class);
+            try {
+                restTemplate.postForObject(fraudServiceUrl + "/evaluate", entity, FraudResponseDTO.class);
+            } catch (Exception e) {
+                // Note: need to handle retry logic for failed calls to fraud service, can use a
+                // message queue or retry mechanism
+                log.error("Failed to call fraud service for txnId {}: {}", transaction.getId(), e.getMessage());
+            }
         });
         return new ResponseDTO(ResponseStatus.SUCCESS,
                 "Transaction processed successfully for UTR: " + transaction.getUtr(), transaction.getId().toString(),
@@ -65,22 +89,11 @@ public class TransactionService {
     }
 
     private Status applyFraudDecision(FraudDecision status, Status currentStatus) {
-        Status mappedStatus = currentStatus;
-        switch (status) {
-            case BLOCKED:
-                if (currentStatus == Status.PENDING) {
-                    mappedStatus = Status.FAILED;
-                } else if (currentStatus == Status.COMPLETED) {
-                    mappedStatus = Status.REVIEW;
-                }
-                break;
-            case APPROVED:
-                if (currentStatus == Status.PENDING)
-                    mappedStatus = Status.COMPLETED;
-                break;
-            default:
-                return Status.PENDING;
-        }
+        Map<Pair<Status, FraudDecision>, Status> transitionMap = Map.of(
+                Pair.of(Status.PENDING, FraudDecision.BLOCKED), Status.FAILED,
+                Pair.of(Status.COMPLETED, FraudDecision.BLOCKED), Status.REVIEW,
+                Pair.of(Status.PENDING, FraudDecision.APPROVED), Status.COMPLETED);
+        Status mappedStatus = transitionMap.getOrDefault(Pair.of(currentStatus, status), currentStatus);
         if (!isAllowedTransition(currentStatus, mappedStatus)) {
             return currentStatus;
         }

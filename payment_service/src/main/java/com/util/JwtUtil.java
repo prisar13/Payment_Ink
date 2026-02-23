@@ -1,5 +1,6 @@
 package com.util;
 
+import java.time.Instant;
 import java.util.Date;
 
 import org.springframework.security.core.userdetails.UserDetails;
@@ -7,11 +8,13 @@ import org.springframework.stereotype.Component;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 
 @Component
 public class JwtUtil {
     private static final String SECRET_KEY = "my-super-secret-key-my-super-secret-key";
+    private static final String SERVICE_SECRET = "my-service-secret-key-my-service-secret-key";
 
     public String generateToken(String username) {
         return Jwts.builder()
@@ -50,4 +53,14 @@ public class JwtUtil {
                 .getBody();
     }
 
+    public String getServiceToken() {
+        return Jwts.builder()
+                .setIssuer("payment-service")
+                .setAudience("fraud-service")
+                .setIssuedAt(new Date())
+                .setExpiration(Date.from(Instant.now().plusSeconds(60)))
+                .claim("role", "service")
+                .signWith(Keys.hmacShaKeyFor(SERVICE_SECRET.getBytes()))
+                .compact();
+    }
 }
