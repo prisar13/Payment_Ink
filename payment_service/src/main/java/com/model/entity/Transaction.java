@@ -24,5 +24,6 @@ public class Transaction extends GenericTableConstants {
     private String description;
     @Enumerated(EnumType.STRING)
     private Status status;
-
+    private String merchant; // Blacklist rule
+    private String country; // Geo anomaly rule
 }

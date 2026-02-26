@@ -3,6 +3,7 @@ package com.service;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -50,17 +51,30 @@ public class FraudService {
     }
 
     private FraudResult evaluateRules(TransactionRequest request) {
+        int riskScore = 0;
+        List<String> reasons = new ArrayList<>();
         if (request.getAmount().compareTo(new BigDecimal("1000")) > 0) {
-            return new FraudResult(FraudDecision.BLOCKED, 0.9, "Amount threshold exceeded");
+            riskScore += 40;
+            reasons.add("High amount");
         }
 
         boolean userFraud = isVelocityFraud("user", request.getUserId(), 5);
         boolean ipFraud = isVelocityFraud("ip", request.getIpAddress(), 10);
-        if (userFraud || ipFraud) {
-            return new FraudResult(FraudDecision.BLOCKED, 0.8, "Velocity threshold exceeded");
+        if (userFraud) {
+            riskScore += 30;
+            reasons.add("User velocity");
+        }
+        if (ipFraud) {
+            riskScore += 20;
+            reasons.add("IP velocity");
         }
 
-        return new FraudResult(FraudDecision.APPROVED, 0.0, "Approved");
+        if (riskScore >= 60) {
+            return new FraudResult(FraudDecision.BLOCKED, riskScore, reasons);
+        } else if (riskScore >= 40) {
+            return new FraudResult(FraudDecision.REVIEW, riskScore, reasons);
+        }
+        return new FraudResult(FraudDecision.APPROVED, riskScore, reasons);
     }
 
     private boolean isVelocityFraud(String keyPrefix, String value, int threshold) {

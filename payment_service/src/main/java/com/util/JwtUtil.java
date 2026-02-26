@@ -8,7 +8,6 @@ import org.springframework.stereotype.Component;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 
 @Component
@@ -62,5 +61,11 @@ public class JwtUtil {
                 .claim("role", "service")
                 .signWith(Keys.hmacShaKeyFor(SERVICE_SECRET.getBytes()))
                 .compact();
+    }
+
+    public static void main(String[] args) {
+        JwtUtil util = new JwtUtil();
+        String token = util.getServiceToken();
+        System.out.println("Generated Service JWT: " + token);
     }
 }

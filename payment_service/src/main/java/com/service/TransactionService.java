@@ -91,7 +91,7 @@ public class TransactionService {
     private Status applyFraudDecision(FraudDecision status, Status currentStatus) {
         Map<Pair<Status, FraudDecision>, Status> transitionMap = Map.of(
                 Pair.of(Status.PENDING, FraudDecision.BLOCKED), Status.FAILED,
-                Pair.of(Status.COMPLETED, FraudDecision.BLOCKED), Status.REVIEW,
+                Pair.of(Status.PENDING, FraudDecision.REVIEW), Status.REVIEW,
                 Pair.of(Status.PENDING, FraudDecision.APPROVED), Status.COMPLETED);
         Status mappedStatus = transitionMap.getOrDefault(Pair.of(currentStatus, status), currentStatus);
         if (!isAllowedTransition(currentStatus, mappedStatus)) {

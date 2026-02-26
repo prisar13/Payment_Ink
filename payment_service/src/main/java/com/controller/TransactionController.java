@@ -25,7 +25,7 @@ public class TransactionController {
         return transactionService.processTransaction(requestDTO);
     }
 
-    @PreAuthorize("hasAnyRole('ADMIN', 'DEVELOPER')")
+    @PreAuthorize("hasAnyRole('ADMIN','SERVICE')")
     @PostMapping(value = "/statusUpdate")
     public String updateTransactionStatus(@RequestBody StatusUpdateDTO requestDTO) {
         return transactionService.updateTransactionStatus(requestDTO);

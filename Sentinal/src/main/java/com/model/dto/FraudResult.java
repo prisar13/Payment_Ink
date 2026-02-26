@@ -1,5 +1,7 @@
 package com.model.dto;
 
+import java.util.List;
+
 import com.model.constants.FraudDecision;
 
 import lombok.AllArgsConstructor;
@@ -13,5 +15,5 @@ public class FraudResult {
 
     private FraudDecision decision;
     private double riskScore;
-    private String reason;
+    private List<String> reasons;
 }
