@@ -1,6 +1,7 @@
 package com.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -17,18 +18,18 @@ public class AuthController {
     private AuthService authService;
 
     @PostMapping("/auth/register")
-    public ResponseDTO register(@RequestBody LoginRequest req) {
+    public ResponseEntity<ResponseDTO> register(@RequestBody LoginRequest req) {
         return authService.register(req);
     }
 
     @PostMapping("/auth/login")
-    public ResponseDTO login(@RequestBody LoginRequest req) {
+    public ResponseEntity<ResponseDTO> login(@RequestBody LoginRequest req) {
         return authService.login(req);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/auth/assign-role")
-    public ResponseDTO assignUserRole(@RequestBody LoginRequest req) {
+    public ResponseEntity<ResponseDTO> assignUserRole(@RequestBody LoginRequest req) {
         return authService.assignUserRole(req);
     }
 }

@@ -1,11 +1,16 @@
 package com.service;
 
+import java.awt.print.Pageable;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -38,7 +43,7 @@ public class FraudService {
         eval.setRiskScore(result.getRiskScore());
         fraudEvaluationRepository.save(eval);
         callbackRetryQueue.sendCallback(new FraudQueueRequest(request.getTransactionId(), result.getDecision()));
-        return new ResponseDTO(request.getTransactionId(), result.getDecision().name(), result.getReason());
+        return new ResponseDTO(request.getTransactionId(), result.getDecision().name(), result.getReasons().toString());
     }
 
     private FraudEvaluation setFraudEvaluationDetails(TransactionRequest request) {
@@ -69,7 +74,12 @@ public class FraudService {
             reasons.add("IP velocity");
         }
 
-        if (riskScore >= 60) {
+        List<String> blacklistedCountries = List.of("CountryA", "CountryB");
+        if (blacklistedCountries.contains(request.getCountry())) {
+            riskScore += 30;
+            reasons.add("Blacklisted country");
+        }
+        if (riskScore >= 70) {
             return new FraudResult(FraudDecision.BLOCKED, riskScore, reasons);
         } else if (riskScore >= 40) {
             return new FraudResult(FraudDecision.REVIEW, riskScore, reasons);
@@ -85,5 +95,16 @@ public class FraudService {
         }
 
         return count > threshold;
+    }
+
+    public Page<ResponseDTO> getFraudAlerts(int page, int size) {
+
+        Page<FraudEvaluation> blockedPage = fraudEvaluationRepository.findByDecision(FraudDecision.BLOCKED,
+                (Pageable) PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "evaluatedAt")));
+
+        return blockedPage.map(eval -> new ResponseDTO(
+                eval.getTransactionId(),
+                "BLOCKED",
+                "Risk Score: " + eval.getRiskScore()));
     }
 }

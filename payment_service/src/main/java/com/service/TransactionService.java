@@ -6,6 +6,9 @@ import java.util.concurrent.CompletableFuture;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.util.Pair;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -21,6 +24,7 @@ import com.model.dto.FraudResponseDTO;
 import com.model.dto.ResponseDTO;
 import com.model.dto.StatusUpdateDTO;
 import com.model.dto.TransactionRequestDTO;
+import com.model.dto.TransactionResponseDTO;
 import com.model.entity.Transaction;
 import com.repo.TransactionRepository;
 import com.util.IdGeneratorUtil;
@@ -108,5 +112,21 @@ public class TransactionService {
             return false;
 
         return true;
+    }
+
+    public Page<TransactionResponseDTO> getTransactions(int page, int size) {
+        return transactionRepository.findAll(PageRequest.of(page, size, Sort.by("createdAt").descending()))
+                .map(this::mapToResponseDTO);
+    }
+
+    private TransactionResponseDTO mapToResponseDTO(Transaction transaction) {
+        TransactionResponseDTO responseDTO = new TransactionResponseDTO();
+        responseDTO.setId(transaction.getId());
+        responseDTO.setAmount(transaction.getAmount());
+        responseDTO.setType(transaction.getType().name());
+        responseDTO.setStatus(transaction.getStatus().name());
+        responseDTO.setUtr(transaction.getUtr());
+        responseDTO.setCreatedAt(transaction.getCreatedAt());
+        return responseDTO;
     }
 }
