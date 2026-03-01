@@ -16,6 +16,6 @@ import lombok.NoArgsConstructor;
 public class ResponseDTO {
     private ResponseStatus status;
     private String message;
-    private String transactionId;
+    private Object data;
     private String token;
 }

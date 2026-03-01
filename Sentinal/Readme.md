@@ -19,3 +19,5 @@
 19. Authentication needs roles immediately. So eager fetch.
 20. In stateless authentication, the server does not store session information. Therefore, each request must be independently authenticated. The JWT filter extracts and validates the token on every request and sets the authentication in the SecurityContext so that Spring Security can authorize the request.
 21. Flyway : we can use this framework to continuously remodel our application’s database schema reliably and easily. Flyway updates a database from one version to the next using migrations. We can write migrations either in SQL with database-specific syntax, or in Java for advanced database transformations. Naming format MUST be:V<version>\_\_<description>.sql for the files.
+22. Added index on evaluated at and decision to increase the speed of search.
+23. need to review the fraud rules. Need to update for ip address, coutry and userID

@@ -54,7 +54,16 @@ public class ServiceAuthFilter extends OncePerRequestFilter {
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         filterChain.doFilter(request, response);
-        filterChain.doFilter(request, response);
+    }
+
+    public static void main(String[] args) {
+        String token = Jwts.builder()
+                .setIssuer("payment-service")
+                .setAudience("fraud-service")
+                .claim("role", "service")
+                .signWith(Keys.hmacShaKeyFor(SERVICE_SECRET.getBytes()))
+                .compact();
+        System.out.println("Generated Token: " + token);
     }
 
 }

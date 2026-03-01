@@ -1,18 +1,22 @@
 package com.service;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.util.Pair;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -30,6 +34,7 @@ import com.repo.TransactionRepository;
 import com.util.IdGeneratorUtil;
 import com.util.JwtUtil;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
@@ -37,7 +42,7 @@ import lombok.extern.slf4j.Slf4j;
 public class TransactionService {
 
     @Autowired
-    private final JwtUtil jwtUtil;
+    private JwtUtil jwtUtil;
     @Autowired
     private TransactionRepository transactionRepository;
     @Autowired
@@ -45,11 +50,7 @@ public class TransactionService {
     @Value("${fraud.service.url}")
     private String fraudServiceUrl;
 
-    TransactionService(JwtUtil jwtUtil) {
-        this.jwtUtil = jwtUtil;
-    }
-
-    public ResponseDTO processTransaction(TransactionRequestDTO requestDTO) {
+    public ResponseDTO processTransaction(TransactionRequestDTO requestDTO, String ipaddressString) {
         Transaction transaction = new Transaction();
         transaction.setAmount(requestDTO.getAmount());
         transaction.setType(requestDTO.getType());
@@ -61,6 +62,9 @@ public class TransactionService {
         FraudRequestDTO fraudRequest = new FraudRequestDTO();
         fraudRequest.setTransactionId(transaction.getId().toString());
         fraudRequest.setAmount(transaction.getAmount());
+        // fraudRequest.setUserId();
+        fraudRequest.setIpAddress(ipaddressString);
+        fraudRequest.setCountry("India"); // Note: can use geoip service to get country from IP
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);

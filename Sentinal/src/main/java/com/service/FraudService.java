@@ -1,6 +1,5 @@
 package com.service;
 
-import java.awt.print.Pageable;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -16,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import com.config.CallbackRetryQueue;
 import com.model.constants.FraudDecision;
+import com.model.dto.FraudAlertDTO;
 import com.model.dto.FraudQueueRequest;
 import com.model.dto.FraudResult;
 import com.model.dto.ResponseDTO;
@@ -63,12 +63,12 @@ public class FraudService {
             reasons.add("High amount");
         }
 
-        boolean userFraud = isVelocityFraud("user", request.getUserId(), 5);
+        // boolean userFraud = isVelocityFraud("user", request.getUserId(), 5);
         boolean ipFraud = isVelocityFraud("ip", request.getIpAddress(), 10);
-        if (userFraud) {
-            riskScore += 30;
-            reasons.add("User velocity");
-        }
+        // if (userFraud) {
+        // riskScore += 30;
+        // reasons.add("User velocity");
+        // }
         if (ipFraud) {
             riskScore += 20;
             reasons.add("IP velocity");
@@ -97,14 +97,17 @@ public class FraudService {
         return count > threshold;
     }
 
-    public Page<ResponseDTO> getFraudAlerts(int page, int size) {
+    public Page<FraudAlertDTO> getFraudAlerts(int page, int size) {
 
-        Page<FraudEvaluation> blockedPage = fraudEvaluationRepository.findByDecision(FraudDecision.BLOCKED,
-                (Pageable) PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "evaluatedAt")));
+        Page<FraudEvaluation> evaluationPage = fraudEvaluationRepository.findByDecisionNot(
+                FraudDecision.APPROVED,
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "evaluatedAt")));
 
-        return blockedPage.map(eval -> new ResponseDTO(
-                eval.getTransactionId(),
-                "BLOCKED",
-                "Risk Score: " + eval.getRiskScore()));
+        return evaluationPage.map(f -> FraudAlertDTO.builder()
+                .transactionId(f.getTransactionId())
+                .decision(f.getDecision())
+                .riskScore(f.getRiskScore())
+                .evaluatedAt(f.getEvaluatedAt())
+                .build());
     }
 }

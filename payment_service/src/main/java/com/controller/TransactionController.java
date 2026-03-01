@@ -16,6 +16,8 @@ import com.model.dto.TransactionRequestDTO;
 import com.model.dto.TransactionResponseDTO;
 import com.service.TransactionService;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 @RestController
 @RequestMapping("/transaction")
 public class TransactionController {
@@ -25,8 +27,19 @@ public class TransactionController {
 
     @PreAuthorize("hasAnyRole('ADMIN', 'DEVELOPER', 'TESTER', 'PRODUCT_OWNER')")
     @PostMapping(value = "/create")
-    public ResponseDTO createTransaction(@RequestBody TransactionRequestDTO requestDTO) {
-        return transactionService.processTransaction(requestDTO);
+    public ResponseDTO createTransaction(@RequestBody TransactionRequestDTO requestDTO,
+            HttpServletRequest httpRequest) {
+        String ip = getClientIp(httpRequest);
+        // Long userId = extractUserIdFromJwt(httpRequest);
+        return transactionService.processTransaction(requestDTO, ip);
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getRemoteAddr();
+        }
+        return ip;
     }
 
     @PreAuthorize("hasAnyRole('ADMIN','SERVICE')")
