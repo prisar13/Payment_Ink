@@ -1,22 +1,15 @@
 package com.service;
 
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.util.Pair;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -24,9 +17,9 @@ import com.model.constants.FraudDecision;
 import com.model.constants.ResponseStatus;
 import com.model.constants.Status;
 import com.model.dto.FraudRequestDTO;
-import com.model.dto.FraudResponseDTO;
 import com.model.dto.ResponseDTO;
 import com.model.dto.StatusUpdateDTO;
+import com.model.dto.TransactionCreatedEvent;
 import com.model.dto.TransactionRequestDTO;
 import com.model.dto.TransactionResponseDTO;
 import com.model.entity.Transaction;
@@ -34,7 +27,6 @@ import com.repo.TransactionRepository;
 import com.util.IdGeneratorUtil;
 import com.util.JwtUtil;
 
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
@@ -45,6 +37,8 @@ public class TransactionService {
     private JwtUtil jwtUtil;
     @Autowired
     private TransactionRepository transactionRepository;
+    @Autowired
+    private KafkaTemplate<String, TransactionCreatedEvent> kafkaTemplate;
     @Autowired
     private RestTemplate restTemplate;
     @Value("${fraud.service.url}")
@@ -66,20 +60,29 @@ public class TransactionService {
         fraudRequest.setIpAddress(ipaddressString);
         fraudRequest.setCountry("India"); // Note: can use geoip service to get country from IP
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(jwtUtil.getServiceToken());
-        HttpEntity<FraudRequestDTO> entity = new HttpEntity<>(fraudRequest, headers);
+        // HttpHeaders headers = new HttpHeaders();
+        // headers.setContentType(MediaType.APPLICATION_JSON);
+        // headers.setBearerAuth(jwtUtil.getServiceToken());
+        // HttpEntity<FraudRequestDTO> entity = new HttpEntity<>(fraudRequest, headers);
 
-        CompletableFuture.runAsync(() -> {
-            try {
-                restTemplate.postForObject(fraudServiceUrl + "/evaluate", entity, FraudResponseDTO.class);
-            } catch (Exception e) {
-                // Note: need to handle retry logic for failed calls to fraud service, can use a
-                // message queue or retry mechanism
-                log.error("Failed to call fraud service for txnId {}: {}", transaction.getId(), e.getMessage());
-            }
-        });
+        // CompletableFuture.runAsync(() -> {
+        // try {
+        // restTemplate.postForObject(fraudServiceUrl + "/evaluate", entity,
+        // FraudResponseDTO.class);
+        // } catch (Exception e) {
+        // // Note: need to handle retry logic for failed calls to fraud service, can
+        // use a
+        // // message queue or retry mechanism
+        // log.error("Failed to call fraud service for txnId {}: {}",
+        // transaction.getId(), e.getMessage());
+        // }
+        // });
+        TransactionEventProducer producer = new TransactionEventProducer(kafkaTemplate);
+        TransactionCreatedEvent event = new TransactionCreatedEvent();
+        event.setTransactionId(transaction.getId().toString());
+        event.setUserId("userId1");
+        event.setAmount(transaction.getAmount());
+        producer.publishTransactionCreatedEvent("userId1", event);
         return new ResponseDTO(ResponseStatus.SUCCESS,
                 "Transaction processed successfully for UTR: " + transaction.getUtr(), transaction.getId().toString(),
                 null);

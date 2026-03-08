@@ -21,3 +21,8 @@
 21. Flyway : we can use this framework to continuously remodel our application’s database schema reliably and easily. Flyway updates a database from one version to the next using migrations. We can write migrations either in SQL with database-specific syntax, or in Java for advanced database transformations. Naming format MUST be:V<version>\_\_<description>.sql for the files.
 22. Added index on evaluated at and decision to increase the speed of search.
 23. need to review the fraud rules. Need to update for ip address, coutry and userID
+24. If Kafka auto-config doesn’t load:
+    - Missing dependency
+    - Wrong Spring Boot version
+    - Excluded auto config
+    - Custom factory bean override mistake

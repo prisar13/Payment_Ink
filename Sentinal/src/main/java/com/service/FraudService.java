@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import com.config.CallbackRetryQueue;
 import com.model.constants.FraudDecision;
 import com.model.dto.FraudAlertDTO;
-import com.model.dto.FraudQueueRequest;
 import com.model.dto.FraudResult;
 import com.model.dto.ResponseDTO;
 import com.model.dto.TransactionRequest;
@@ -42,7 +41,8 @@ public class FraudService {
         eval.setDecision(result.getDecision());
         eval.setRiskScore(result.getRiskScore());
         fraudEvaluationRepository.save(eval);
-        callbackRetryQueue.sendCallback(new FraudQueueRequest(request.getTransactionId(), result.getDecision()));
+        // callbackRetryQueue.sendCallback(new
+        // FraudQueueRequest(request.getTransactionId(), result.getDecision()));
         return new ResponseDTO(request.getTransactionId(), result.getDecision().name(), result.getReasons().toString());
     }
 
@@ -110,4 +110,5 @@ public class FraudService {
                 .evaluatedAt(f.getEvaluatedAt())
                 .build());
     }
+
 }

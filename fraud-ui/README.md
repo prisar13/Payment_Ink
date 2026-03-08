@@ -34,4 +34,5 @@ React has three main phases during rendering:
 > - The initial render may execute redirect logic **before** the auth state is restored.
 > - As a result, the user is redirected to the login page even though the token exists.
 > Authentication state must be resolved before protected route logic runs, or a loading guard should be implemented to prevent premature redirects.
-> React state is memory-based.
+> React state is memory-based. localStorage is browser-based. This is called a: Race condition between render and authentication restoration.
+Because useState initializer runs during render phase. so setting its value to the token directly would lead it to be populated with the token during render itself so when it comes to the token value check it will not be null.
