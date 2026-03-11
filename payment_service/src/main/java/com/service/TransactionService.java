@@ -11,7 +11,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.util.Pair;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
 
 import com.model.constants.FraudDecision;
 import com.model.constants.ResponseStatus;
@@ -25,8 +24,8 @@ import com.model.dto.TransactionResponseDTO;
 import com.model.entity.Transaction;
 import com.repo.TransactionRepository;
 import com.util.IdGeneratorUtil;
-import com.util.JwtUtil;
 
+import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
@@ -34,15 +33,16 @@ import lombok.extern.slf4j.Slf4j;
 public class TransactionService {
 
     @Autowired
-    private JwtUtil jwtUtil;
-    @Autowired
     private TransactionRepository transactionRepository;
     @Autowired
     private KafkaTemplate<String, TransactionCreatedEvent> kafkaTemplate;
-    @Autowired
-    private RestTemplate restTemplate;
     @Value("${fraud.service.url}")
     private String fraudServiceUrl;
+
+    private static final Map<Pair<Status, FraudDecision>, Status> TRANSITION_MAP = Map.of(
+            Pair.of(Status.PENDING, FraudDecision.BLOCKED), Status.FAILED,
+            Pair.of(Status.PENDING, FraudDecision.REVIEW), Status.REVIEW,
+            Pair.of(Status.PENDING, FraudDecision.APPROVED), Status.COMPLETED);
 
     public ResponseDTO processTransaction(TransactionRequestDTO requestDTO, String ipaddressString) {
         Transaction transaction = new Transaction();
@@ -59,40 +59,26 @@ public class TransactionService {
         // fraudRequest.setUserId();
         fraudRequest.setIpAddress(ipaddressString);
         fraudRequest.setCountry("India"); // Note: can use geoip service to get country from IP
-
-        // HttpHeaders headers = new HttpHeaders();
-        // headers.setContentType(MediaType.APPLICATION_JSON);
-        // headers.setBearerAuth(jwtUtil.getServiceToken());
-        // HttpEntity<FraudRequestDTO> entity = new HttpEntity<>(fraudRequest, headers);
-
-        // CompletableFuture.runAsync(() -> {
-        // try {
-        // restTemplate.postForObject(fraudServiceUrl + "/evaluate", entity,
-        // FraudResponseDTO.class);
-        // } catch (Exception e) {
-        // // Note: need to handle retry logic for failed calls to fraud service, can
-        // use a
-        // // message queue or retry mechanism
-        // log.error("Failed to call fraud service for txnId {}: {}",
-        // transaction.getId(), e.getMessage());
-        // }
-        // });
         TransactionEventProducer producer = new TransactionEventProducer(kafkaTemplate);
         TransactionCreatedEvent event = new TransactionCreatedEvent();
         event.setTransactionId(transaction.getId().toString());
         event.setUserId("userId1");
         event.setAmount(transaction.getAmount());
+        event.setIpAddress(ipaddressString);
         producer.publishTransactionCreatedEvent("userId1", event);
         return new ResponseDTO(ResponseStatus.SUCCESS,
                 "Transaction processed successfully for UTR: " + transaction.getUtr(), transaction.getId().toString(),
                 null);
     }
 
+    @Transactional
     public String updateTransactionStatus(StatusUpdateDTO requestDTO) {
         Transaction transaction = transactionRepository.findById(UUID.fromString(requestDTO.getTransactionId()))
                 .orElseThrow(
                         () -> new RuntimeException("Transaction not found with ID: " + requestDTO.getTransactionId()));
-
+        if (transaction.getStatus() != Status.PENDING) {
+            return "Transaction already processed";
+        }
         Status mappedStatus = applyFraudDecision(requestDTO.getDecision(), transaction.getStatus());
         transaction.setStatus(mappedStatus);
         transactionRepository.save(transaction);
@@ -100,11 +86,7 @@ public class TransactionService {
     }
 
     private Status applyFraudDecision(FraudDecision status, Status currentStatus) {
-        Map<Pair<Status, FraudDecision>, Status> transitionMap = Map.of(
-                Pair.of(Status.PENDING, FraudDecision.BLOCKED), Status.FAILED,
-                Pair.of(Status.PENDING, FraudDecision.REVIEW), Status.REVIEW,
-                Pair.of(Status.PENDING, FraudDecision.APPROVED), Status.COMPLETED);
-        Status mappedStatus = transitionMap.getOrDefault(Pair.of(currentStatus, status), currentStatus);
+        Status mappedStatus = TRANSITION_MAP.getOrDefault(Pair.of(currentStatus, status), currentStatus);
         if (!isAllowedTransition(currentStatus, mappedStatus)) {
             return currentStatus;
         }
@@ -112,13 +94,10 @@ public class TransactionService {
     }
 
     private boolean isAllowedTransition(Status current, Status next) {
-        if (current == next)
+        if (current == Status.COMPLETED || current == Status.FAILED || current == Status.REVIEW) {
             return false;
-
-        if (current == Status.REVIEW)
-            return false;
-
-        return true;
+        }
+        return current != next;
     }
 
     public Page<TransactionResponseDTO> getTransactions(int page, int size) {

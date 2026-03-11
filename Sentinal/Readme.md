@@ -26,3 +26,9 @@
     - Wrong Spring Boot version
     - Excluded auto config
     - Custom factory bean override mistake
+    - kafkaTemplate.send("topic.name", key , value/object);
+    - @EnableKafka should be there in main class
+25. Event Driven architecture provided by kafka that allows interservice communication without any direct api calls via topics, producers and consumer. Kafka guarantees at-least-once delivery. That means your consumer may receive same event twice, this would update the transaction twice.
+26. @Transactional: Otherwise if something fails after saving partially you can get inconsistent state.
+27. Poison pill message problem????
+28. DeadLetterPublishingRecoverer and DefaultErrorHandler required for handling any kind of DLQ logic in a configuration class. Dlq will prevent message loss, infinite reties and system downtime. Enales reprocessing.

@@ -13,9 +13,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
-import com.config.CallbackRetryQueue;
 import com.model.constants.FraudDecision;
 import com.model.dto.FraudAlertDTO;
+import com.model.dto.FraudDecisionEvent;
 import com.model.dto.FraudResult;
 import com.model.dto.ResponseDTO;
 import com.model.dto.TransactionRequest;
@@ -30,7 +30,7 @@ public class FraudService {
     @Autowired
     private FraudEvaluationRepository fraudEvaluationRepository;
     @Autowired
-    private CallbackRetryQueue callbackRetryQueue;
+    private FraudDecisionProducer fraudDecisionProducer;
     @Autowired
     private StringRedisTemplate redisTemplate;
 
@@ -41,8 +41,12 @@ public class FraudService {
         eval.setDecision(result.getDecision());
         eval.setRiskScore(result.getRiskScore());
         fraudEvaluationRepository.save(eval);
-        // callbackRetryQueue.sendCallback(new
-        // FraudQueueRequest(request.getTransactionId(), result.getDecision()));
+        fraudDecisionProducer.sendFraudDecision(
+                new FraudDecisionEvent(
+                        request.getTransactionId(),
+                        result.getDecision().toString(),
+                        result.getRiskScore(),
+                        result.getReasons()));
         return new ResponseDTO(request.getTransactionId(), result.getDecision().name(), result.getReasons().toString());
     }
 

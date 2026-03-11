@@ -9,4 +9,6 @@ public class TransactionCreatedEvent {
     private String transactionId;
     private String userId;
     private BigDecimal amount;
+    private String currency;
+    private String ipAddress;
 }

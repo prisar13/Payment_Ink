@@ -25,13 +25,9 @@ public class TransactionEventConsumer {
                 .transactionId(event.getTransactionId())
                 .userId(userId)
                 .amount(event.getAmount())
+                .ipAddress(event.getIpAddress())
                 .build();
         ResponseDTO response = fraudEvaluationService.evaluateTransaction(request);
         System.out.println("Fraud decision: " + response.getDecision());
     }
-
-    // @KafkaListener(topics = "transaction.created", groupId = "fraud-group")
-    // public void listen(String message) {
-    // System.out.println("Received: " + message);
-    // }
 }
