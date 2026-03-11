@@ -1,34 +1,69 @@
-1. Handled ansync calls for better customer experience.
-2. handled distributed system logic for clear speration of concerns
-3. handled retry logic for status update and added a retry limit so system doesn't encounter any memory overload or resources depletion problem.
-4. TODO: In memory queue, can be replaced with kafka, PriorityQueue ordered by nextRetryTime, DelayQueue (best Java solution)
-5. TODO: Feign fancy client for call from payment service to fraud engine
-6. TransctionsService create UUID. Fraud treats it as a external Reference. No ownership should be there in Fraud Service.
-7. Service needs to be idempotent so when status = in review or new status == old status then no need to update.
-8. Retry logic is for situation when Fraud Engine tries to connect with transaction service to update the status but for some reason it is down. So it does an exponential timeslot callback attempt.
-9. Force RestTemplate to treat non-2xx as failure. Spring RestTemplate does NOT throw exception for 404 by default in my setup (or it gets swallowed depending on error handler).
-10. Springboot has something called autoconfiguration. when we add the dependency : spring-boot-starter-security it automatically creates SecurityFilterChain. Even if you write 0 security code, spring silently adds FilterChainProxy which can lead to unauthorized if we dont set the correct security credentials while sending request. Now by adding manual filter , my request passes through the filter(filterChain), which executes before the authentication due to addFilterBefore
-11. Spring primarily injects by type, not by name. So after startup when it searches for a autowired class or object it searches among the available beans and dependencies and when it find that type, it injects it. That is what happens in case of PasswordEncoder and bean of Bcrypt Encoder.
-12. Creating two beans with the same return type of password encoder would have caused ambiguity and spring would hae thrown no unique bean found exception. In such case we need to inject by name using @Qualifier annotation. ex: @Qualifier("encoder1")
-13. Spring creates all singleton beans when the application context is initialized. @SpringBootApplication kicks off auto-configuration. Component scanning begins -> Application context gets built -> singleton beans get created -> dependency injected -> app ready.
-14. Bcrypt is a secure, slow, and computationally intensive password-hashing function based on the Blowfish block cipher. A salt is a random, unique string added to each password before hashing, which prevents rainbow table attacks and ensures that identical passwords produce different hashes, significantly enhancing security. Slow is good for security. SHA256 is fast → bad for passwords. BCrypt is adaptive & slow → resistant to brute force
-15. Never trust request data, Always trust DB state
-16. Services are part of business logic and do not participate in security lifecycle.
-17. Spring expects roles prefixed with ROLE\_. So, USER → ROLE_USER , ADMIN → ROLE_ADMIN
-18. Method-level security is evaluated after authentication but before method execution. Is closer to business logic.
-19. Authentication needs roles immediately. So eager fetch.
-20. In stateless authentication, the server does not store session information. Therefore, each request must be independently authenticated. The JWT filter extracts and validates the token on every request and sets the authentication in the SecurityContext so that Spring Security can authorize the request.
-21. Flyway : we can use this framework to continuously remodel our application’s database schema reliably and easily. Flyway updates a database from one version to the next using migrations. We can write migrations either in SQL with database-specific syntax, or in Java for advanced database transformations. Naming format MUST be:V<version>\_\_<description>.sql for the files.
-22. Added index on evaluated at and decision to increase the speed of search.
-23. need to review the fraud rules. Need to update for ip address, coutry and userID
-24. If Kafka auto-config doesn’t load:
-    - Missing dependency
-    - Wrong Spring Boot version
-    - Excluded auto config
-    - Custom factory bean override mistake
-    - kafkaTemplate.send("topic.name", key , value/object);
-    - @EnableKafka should be there in main class
-25. Event Driven architecture provided by kafka that allows interservice communication without any direct api calls via topics, producers and consumer. Kafka guarantees at-least-once delivery. That means your consumer may receive same event twice, this would update the transaction twice.
-26. @Transactional: Otherwise if something fails after saving partially you can get inconsistent state.
-27. Poison pill message problem????
-28. DeadLetterPublishingRecoverer and DefaultErrorHandler required for handling any kind of DLQ logic in a configuration class. Dlq will prevent message loss, infinite reties and system downtime. Enales reprocessing.
+# Sentinal (fraud engine)
+
+Spring Boot service that evaluates transactions for fraud. It consumes Kafka events from `payment_service`, persists evaluations, and sends status callbacks back to `payment_service` with retry/backoff if the callback fails.
+
+## Runs on
+
+- `http://localhost:8080` (default)
+
+## Key responsibilities
+
+- **Fraud evaluation API**: `/evaluate` for direct evaluation calls
+- **Async evaluation**: consumes `transaction.created` from Kafka
+- **Alerts**: `/alerts` paginated fraud alerts
+- **Callback reliability**: retries `/transaction/statusUpdate` using an in-memory retry queue with exponential backoff
+
+## API (main)
+
+- `POST /evaluate`
+- `GET /alerts?page=0&size=10`
+
+## Configuration
+
+Credentials are not committed. See root `.env.example`.
+
+Used properties (see `src/main/resources/application.properties`):
+
+- `FRAUD_DB_URL`, `FRAUD_DB_USERNAME`, `FRAUD_DB_PASSWORD`
+- `SENTINAL_ADMIN_USER`, `SENTINAL_ADMIN_PASSWORD`
+- `PAYMENT_SERVICE_URL` (defaults to `http://localhost:8081`)
+- `REDIS_HOST`, `REDIS_PORT`
+- `KAFKA_BOOTSTRAP_SERVERS`
+
+## Notes & lessons learned
+
+- **Async + distributed design**
+  1. Async processing improves perceived latency for the caller.
+  2. Clear separation of concerns matters in distributed systems.
+- **Retry/backoff**
+  3. Retry logic for status update includes a retry limit to avoid resource exhaustion.
+  4. TODO: In-memory queue can be replaced with Kafka, a `PriorityQueue` ordered by next retry time, or Java’s `DelayQueue` (often the cleanest).
+- **Service boundaries**
+  6. `payment_service` owns the transaction ID (UUID). Fraud treats it as an external reference—no ownership in fraud service.
+  7. Idempotency matters: if status is already “in review” or new status == old status, don’t update.
+  8. Retry callbacks cover the case where `payment_service` is temporarily down.
+- **HTTP client gotchas**
+  9. Treat non-2xx as failure; depending on error handlers, `RestTemplate` may not throw how you expect.
+- **Spring Security / DI**
+  10. Adding `spring-boot-starter-security` auto-registers a `SecurityFilterChain`; without deliberate config, you can get unexpected 401s.
+  11. Spring injects primarily by type.
+  12. Two beans of the same type (e.g., `PasswordEncoder`) requires `@Qualifier` to resolve ambiguity.
+  13. Singleton beans are created at application context initialization.
+  14. BCrypt is intentionally slow and salted; good for passwords. Fast hashes (e.g., SHA256) are not appropriate for password storage.
+  15. Never trust request data—trust DB state.
+  16. Services are business logic; don’t mix them into the security lifecycle.
+  17. Spring roles are typically prefixed with `ROLE_` (e.g., `ADMIN` → `ROLE_ADMIN`).
+  18. Method-level security is evaluated after authentication, before method execution.
+  19. Authentication needs roles immediately → eager fetch can be required.
+  20. Stateless auth: every request validates JWT and sets `SecurityContext`.
+- **DB migrations & performance**
+  21. Flyway migration naming: `V<version>__<description>.sql`
+  22. Indexes (e.g., evaluatedAt + decision) can materially speed up searches.
+  23. Fraud rules to revisit: IP address, country, userId.
+- **Kafka semantics**
+  24. If Kafka auto-config doesn’t load: missing dependency, version mismatch, excluded auto-config, or overridden factory beans; ensure `@EnableKafka` if needed.
+  25. Kafka is typically at-least-once delivery → design consumers and status updates to be idempotent.
+- **Transactions & failure handling**
+  26. `@Transactional` prevents partial writes and inconsistent state.
+  27. TODO: “Poison pill” message handling.
+  28. DLQ pattern: `DeadLetterPublishingRecoverer` + `DefaultErrorHandler` to avoid infinite retries and enable reprocessing.

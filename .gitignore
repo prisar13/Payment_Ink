@@ -1,0 +1,38 @@
+# --- OS / Editor ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# --- Node ---
+**/node_modules/
+**/dist/
+**/dist-ssr/
+**/*.local
+
+# --- Java / Maven ---
+**/target/
+**/build/
+**/*.class
+**/.mvn/wrapper/maven-wrapper.jar
+
+# --- Logs ---
+**/*.log
+**/logs/
+
+# --- Local config / secrets (keep locally, never commit) ---
+.env
+.env.*
+!.env.example
+
+**/application-local.properties
+**/application-local.yml
+**/application-local.yaml
+
+docs/private/
+!docs/private/PRIVATE_NOTES.template.md

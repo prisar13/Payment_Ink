@@ -1,38 +1,39 @@
-# Hello
+# fraud-ui
 
-- Just me writing some rough notes for the sake of undertsanding the concepts. Follow along if you will.
-- Thanks for passing by
+React UI for interacting with the system (login, transactions, fraud alerts).
 
-# authConfig
+## Runs on
 
-- Defined a global level authentication header for the request using the token stored in localstorage.
-- response : catch error if any or else return the response.
+- `http://localhost:5173` (default Vite port)
 
-# AuthContext
+## Setup
 
-- Provides basic login, logout and authentication via token flow.
+```bash
+npm install
+npm run dev
+```
 
-# ProtectedRoute
+## Backend API base URL
 
-### Issue: On Refresh, Token Exists in localStorage, But User Gets Redirected to Login
+The Axios client is configured in `src/api/axiosConfig.js` and currently points to:
 
-#### Root Cause: React Rendering Lifecycle Timing Problem
+- `http://localhost:8081` (`payment_service`)
 
-React has three main phases during rendering:
+## Notes & lessons learned
 
-1. **Render Phase**
-2. **Commit Phase**
-3. **Effects Phase** (`useEffect` runs here)
+### authConfig
 
-> ##### Important Detail
-> `useEffect()` does **NOT** run during the initial render.
-> It runs **after** the component has already rendered and committed to the DOM.
-> 
-> This means:
-> - On page refresh, the component renders first.
-> - If authentication state depends on `useEffect()` (e.g., reading token from `localStorage` and setting user state),
-> - The initial render may execute redirect logic **before** the auth state is restored.
-> - As a result, the user is redirected to the login page even though the token exists.
-> Authentication state must be resolved before protected route logic runs, or a loading guard should be implemented to prevent premature redirects.
-> React state is memory-based. localStorage is browser-based. This is called a: Race condition between render and authentication restoration.
-Because useState initializer runs during render phase. so setting its value to the token directly would lead it to be populated with the token during render itself so when it comes to the token value check it will not be null.
+- Defines a global auth header using the token stored in `localStorage`.
+- Response interceptor clears token + redirects to `/login` on 401.
+
+### AuthContext
+
+- Provides basic login, logout, and authentication via a token flow.
+
+### ProtectedRoute: refresh redirect issue
+
+**Issue**: On refresh, token exists in `localStorage`, but user is redirected to login.
+
+**Root cause**: React rendering lifecycle timing—`useEffect()` runs after the initial render commit. If auth restoration happens only in `useEffect`, protected route checks can run before auth state is restored.
+
+**Key takeaway**: Initialize auth state during render (e.g., `useState(() => localStorage.getItem("token"))`) or add a loading/rehydration guard to prevent redirects until auth is resolved.
